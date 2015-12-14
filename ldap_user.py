@@ -64,8 +64,68 @@ except Exception, e:
     exit(1)
 
 
+class User:
+    login = ""
+    fio = ""
+    mail = ""
+    groups = ""
+
+    def __init__(self, login=login, fio=fio, mail=mail, groups=groups):
+        if login != "":
+            self.login = login
+        if fio != "":
+            self.fio = fio
+        if mail != "":
+            self.mail = mail
+        if groups != "":
+            self.groups = groups
+
+    def __repr__(self):
+        return self.login+" "+self.fio+" "+self.mail+" "+self.groups
+
+    def insert_to_db(self, cr):
+        sql = "insert into erp_login (login,fio,mail,groups) \
+               values ('"+self.login+"','"+self.fio+"','"+self.mail+"','"+self.groups+"');"
+        logging.debug("Insert sql: " + sql)
+        #cr.execute(sql)
+
+    def update_db(self, cr):
+        sql = "select login, fio, mail, groups from erp_login where login = '"+self.login+"';"
+        cr.execute(sql)
+        res = cr.fetchall()
+        if len(res) == 1:
+            # compare and update
+            login, fio, mail, groups = res[0]
+            changes_dict = {}
+            if unicode(self.fio, "utf-8") != fio:
+                changes_dict['fio'] = self.fio
+            if self.mail != mail:
+                changes_dict['mail'] = self.mail
+            if self.groups != groups:
+                changes_dict['groups'] = self.groups
+            if len(changes_dict) > 0:
+                self.update_changes(cr, changes_dict)
+                logging.debug("Changes_dict: " + str(changes_dict))
+        elif len(res) == 0:
+            # print "Insert",self
+            self.insert_to_db(cr)
+        else:
+            logging.debug("Non uniq login " + self.login)
+
+    def update_changes(self, cr, changes_dict):
+        values = ""
+        sql = ""
+        for field in changes_dict:
+            values += field+" = '"+changes_dict[field]+"',"
+            sql = "update erp_login set "+values[:-1]+" where login = '"+self.login+"';"
+        if sql != "":
+            logging.debug("Update sql: "+sql)
+            #cr.execute(sql)
+
+
 def get_ldap_users():
     res = []
+    logging.debug("Try to get ldap users.")
     try:
         ad = ldap.initialize(ad_ldap_url)
         ad.simple_bind_s(ad_ldap_bind_dn, ad_ldap_secret)
@@ -85,22 +145,33 @@ def parce_ldap(data):
         return res
     for line in data:
         data_user_groups = line[0][3:-len(ad_ldap_base_dn)-1].split(',', 1)
-        user = data_user_groups[0]
-        group = ""
+        fio = data_user_groups[0]
+        groups = ""
         mail = ""
         login = ""
         if len(data_user_groups) == 2:
-            group = data_user_groups[1].replace("OU=","")
+            groups = data_user_groups[1].replace("OU=", "")
         if 'mail' in line[1]:
             mail = line[1]['mail'][0]
         if 'sAMAccountName' in line[1]:
             login = line[1]['sAMAccountName'][0]
         if login in exclude_login:
             continue
-        print login, user, mail, group
+        # print login, user, mail, groups
+        res[login] = User(login, fio, mail, groups)
+    logging.debug("Get "+str(len(res))+" users.")
+    return res
+
+
+def update_db_users(user_dict):
+    for login in user_dict:
+        # user_dict[login].update_db(cr)
+        print user_dict[login]
 
 
 if __name__ == "__main__":
     ldap_data = get_ldap_users()
     user_dict = parce_ldap(ldap_data)
+
+    update_db_users(user_dict)
 
