@@ -5,6 +5,8 @@ from ConfigParser import SafeConfigParser
 from sys import exit
 import logging
 import ldap
+import MySQLdb
+
 
 # define env variables
 logging_file = 'log'
@@ -16,6 +18,10 @@ config = SafeConfigParser()
 config.read(conf_files)
 conf_warn = ""
 exclude_login = []
+
+# Database objects
+db = None
+cr = None
 
 try:
     exclude_conf_login = config.get('logins', 'exclude')
@@ -83,13 +89,13 @@ class User:
     def __repr__(self):
         return self.login+" "+self.fio+" "+self.mail+" "+self.groups
 
-    def insert_to_db(self, cr):
+    def insert_to_db(self):
         sql = "insert into erp_login (login,fio,mail,groups) \
                values ('"+self.login+"','"+self.fio+"','"+self.mail+"','"+self.groups+"');"
         logging.debug("Insert sql: " + sql)
-        #cr.execute(sql)
+        cr.execute(sql)
 
-    def update_db(self, cr):
+    def update_db(self):
         sql = "select login, fio, mail, groups from erp_login where login = '"+self.login+"';"
         cr.execute(sql)
         res = cr.fetchall()
@@ -104,15 +110,15 @@ class User:
             if self.groups != groups:
                 changes_dict['groups'] = self.groups
             if len(changes_dict) > 0:
-                self.update_changes(cr, changes_dict)
+                self.update_changes(changes_dict)
                 logging.debug("Changes_dict: " + str(changes_dict))
         elif len(res) == 0:
             # print "Insert",self
-            self.insert_to_db(cr)
+            self.insert_to_db()
         else:
             logging.debug("Non uniq login " + self.login)
 
-    def update_changes(self, cr, changes_dict):
+    def update_changes(self, changes_dict):
         values = ""
         sql = ""
         for field in changes_dict:
@@ -120,7 +126,7 @@ class User:
             sql = "update erp_login set "+values[:-1]+" where login = '"+self.login+"';"
         if sql != "":
             logging.debug("Update sql: "+sql)
-            #cr.execute(sql)
+            cr.execute(sql)
 
 
 def get_ldap_users():
@@ -165,13 +171,55 @@ def parce_ldap(data):
 
 def update_db_users(user_dict):
     for login in user_dict:
-        # user_dict[login].update_db(cr)
-        print user_dict[login]
+        user_dict[login].update_db()
+        db.commit()
+        # print user_dict[login]
+
+
+def connect_mysql():
+    global db, cr
+    res = True
+    logging.debug("Connect to mysql.")
+    try:
+        # Connect to mysql
+        db = MySQLdb.connect(
+                            host=mysql_host,
+                            user=mysql_user,
+                            passwd=mysql_passwd,
+                            db=mysql_db,
+                            charset='utf8',
+                            init_command='SET NAMES UTF8'
+        )
+        cr = db.cursor()
+    except Exception, e:
+        logging.error("Can't connet to mysql: "+str(e))
+        res = False
+    return res
+
+
+def delete_from_db(user_dict):
+    # remove deleted users
+    sql = "select login from erp_login;"
+    cr.execute(sql)
+    res = cr.fetchall()
+    for l in res:
+        if l[0] not in user_dict:
+            sql = "delete from erp_login where login = '" + l[0] + "';"
+            logging.debug("Deleting user: "+sql)
+            cr.execute(sql)
+            db.commit()
+
+
+def close_db():
+    if db is not None:
+        db.close()
 
 
 if __name__ == "__main__":
+    logging.info("Start updating ldap users.")
     ldap_data = get_ldap_users()
     user_dict = parce_ldap(ldap_data)
-
-    update_db_users(user_dict)
-
+    if connect_mysql():
+        update_db_users(user_dict)
+        delete_from_db(user_dict)
+        close_db()
