@@ -8,7 +8,6 @@ from time import sleep
 
 
 class Switch:
-    log = None
     host = ""
     ip = ""
     user = ""
@@ -18,6 +17,8 @@ class Switch:
     sock = None
     mac_table = {}
     lockout_table = []
+    # Упорядочить работу
+    log = None
     status = -1
     error_msg = ""
     debug = 0
@@ -37,9 +38,15 @@ class Switch:
             self.passwd = passwd
         if log is not None:
             self.log = log
+        log.debug("Switch init:"+str(self))
         self.update()
-        if self.debug:
-            self.info()
+        # if self.debug:
+        #    self.info()
+
+    def __repr__(self):
+        res = "stipe = "+self.stype+", host = "+self.host+", ip = "+self.ip+", sm = "+self.stack_member+"\n"
+        res += "mac_table = "+str(self.mac_table)+"\n"+"lockout_table = "+str(self.lockout_table)
+        return res
 
     def info(self):
         print "host =", self.host
@@ -55,7 +62,7 @@ class Switch:
         self.status = -1
         self.connect_sw()
         if self.sock:
-            self.debug_info("login")
+            # self.debug_info("login")
             self.send_login()
             sleep(1)
             self.debug_info("get_mac")
@@ -77,22 +84,25 @@ class Switch:
         return res
 
     def connect_sw(self):
-        sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sk.settimeout(60)
+        self.log.debug("Create socket to connect to switch.")
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(60)
         try:
-            sk.connect((self.ip, 23))
+            s.connect((self.ip, 23))
         except Exception, e:
             self.error_msg = "Can\'t connect to "+self.ip+", "+str(e).replace('\n', ' ')
+            self.log.error(self.error_msg)
             self.status = 1
-            sk = None
-        self.sock = sk
+            s = None
+        self.sock = s
 
     def recv_data(self):
         if self.status > 0:
             return ""
         try:
             res = self.sock.recv(1024)
-            self.debug_info(self.safe_str(res))
+            # self.debug_info(self.safe_str(res))
+            self.log.debug(self.safe_str(res))
         except Exception, e:
             self.error_msg = "Error receiving data,"+str(e).replace('\n', ' ')
             self.status = 1
@@ -112,7 +122,7 @@ class Switch:
                 self.sock.send(" "+chr(13))
             elif response_data.find("Enter <CR> for more") != -1:
                 self.sock.send(chr(13))
-            elif response_data.find("Next Page") != -1 and  response_data.find("Next Entry") != -1:
+            elif response_data.find("Next Page") != -1 and response_data.find("Next Entry") != -1:
                 self.sock.send(" " + chr(13))
             response_data = self.recv_data()
             data = data+response_data
@@ -120,6 +130,7 @@ class Switch:
         return data
 
     def send_login(self):
+        self.log.debug("send_login: "+self.stype+" "+str(self.status))
         if self.status > 1:
             return
         if self.stype == "hp":

@@ -50,6 +50,7 @@ if conf_warn != "":
     logging.warning(conf_warn)
     # exit(1)
 
+
 def get_switch_config():
     for section in config.sections():
         if section.find("switch_") != -1:
@@ -68,6 +69,7 @@ if __name__ == "__main__":
             ip=dict_sw['ip'],
             host=dict_sw['name'],
             user=dict_sw['user'],
-            passwd=dict_sw['pass']
+            passwd=dict_sw['pass'],
+            log=logging
     )
     sw.info()
