@@ -5,6 +5,7 @@
 ##########################################
 import socket
 from time import sleep
+import logging
 
 
 class Switch:
@@ -18,7 +19,7 @@ class Switch:
     mac_table = {}
     lockout_table = []
     # Упорядочить работу
-    log = None
+    log = logging
     status = -1
     error_msg = ""
     debug = 0
@@ -36,8 +37,8 @@ class Switch:
             self.user = user
         if passwd != "":
             self.passwd = passwd
-        if log is not None:
-            self.log = log
+        # if log is not None:
+        #    self.log = log
         log.debug("Switch init:"+str(self))
         self.update()
         # if self.debug:
@@ -62,16 +63,12 @@ class Switch:
         self.status = -1
         self.connect_sw()
         if self.sock:
-            # self.debug_info("login")
             self.send_login()
             sleep(1)
-            self.debug_info("get_mac")
             self.mac_table = self.get_mac()
             sleep(1)
-            self.debug_info("get_lockout")
             self.lockout_table = self.get_lockout()
             sleep(1)
-            self.debug_info("logout")
             self.logout()
         if self.status < 1:
             self.status = 0
@@ -102,7 +99,7 @@ class Switch:
         try:
             res = self.sock.recv(1024)
             # self.debug_info(self.safe_str(res))
-            self.log.debug(self.safe_str(res))
+            # self.log.debug(self.safe_str(res))
         except Exception, e:
             self.error_msg = "Error receiving data,"+str(e).replace('\n', ' ')
             self.status = 1
@@ -110,6 +107,7 @@ class Switch:
         return res
 
     def get_data(self, exit_condition):
+        self.log.debug("get_data")
         if self.status > 1:
             return
         data = ""
@@ -126,6 +124,7 @@ class Switch:
                 self.sock.send(" " + chr(13))
             response_data = self.recv_data()
             data = data+response_data
+        self.log.debug(self.safe_str(data))
         # print self.safe_str(data)
         return data
 
@@ -143,11 +142,14 @@ class Switch:
             self.send_login_dlink()
         else:
             self.status = 1
+            self.log.error("Incorrect switch type")
             self.error_msg = self.stype = " - incorrect switch type."
             return
         res = self.get_data(self.host)
+        self.log.debug("Login success.")
 
     def send_login_hp(self):
+        self.log.debug("send_login_hp: "+self.stype+" "+str(self.status))
         response_data = " "
         while response_data != "":
             if response_data.find("Username: ") != -1:
@@ -165,6 +167,7 @@ class Switch:
                 return
 
     def send_login_3com(self):
+        self.log.debug("send_login_3com: "+self.stype+" "+str(self.status))
         response_data = " "
         while response_data != "":
             if response_data.find("Login:") != -1:
@@ -178,6 +181,7 @@ class Switch:
                 return
 
     def send_login_dlink(self):
+        self.log.debug("send_login_dlink: "+self.stype+" "+str(self.status))
         response_data = " "
         while response_data != "":
             if response_data.find("username:") != -1:
@@ -191,6 +195,7 @@ class Switch:
                 return
 
     def get_mac(self):
+        self.log.debug("get_mac")
         if self.status > 1:
             return {}
         if self.stype == "hp":
@@ -203,7 +208,7 @@ class Switch:
             return self.get_mac_dlink()
         else:
             self.status = 1
-            self.error_msg = self.stype = " - incorrect switch type."
+            self.log.error("Incorrect switch type.")
             return {}
 
     def debug_info(self, message, level=1):
@@ -243,7 +248,8 @@ class Switch:
                 res[self.std_mac(mac)] = port_num
         return res
 
-    def get_mac_hp(self):	    
+    def get_mac_hp(self):
+        self.log.debug("get_mac_hp")
         res = {}
         if self.sock:
             self.sock.send("show mac-address"+chr(13))
@@ -363,14 +369,15 @@ class Switch:
         return res
 
     def parce_data_hp(self, data):
+        self.log.debug("Parce data hp.")
         if self.status > 1:
             return {}
         res = {}
         # print self.safe_str(data)
         lines = data.split(chr(10)+chr(13))
         for line in lines:
-            line = line.replace(chr(13), "")
             # print len(line),self.safe_str(line)
+            line = line.replace(chr(13), "")
             if line.find("how mac") != -1:
                 continue
             elif line.find("Status and Counters") != -1:
@@ -386,12 +393,13 @@ class Switch:
             elif line.find("MORE") != -1:
                 line = line[-31:]
                 # line=line.replace(chr(13),"")
+            self.log.debug(self.safe_str(line))
             line = line.strip()
             if len(line.split()) == 2:
                 mac, port = line.split()
                 res[self.std_mac(mac)] = int(port)
                 # res.append([self.std_mac(mac),int(port)])
-            return res
+        return res
 
     def logout(self):
         if self.status > 1:
