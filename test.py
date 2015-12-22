@@ -69,7 +69,6 @@ if __name__ == "__main__":
             ip=dict_sw['ip'],
             host=dict_sw['name'],
             user=dict_sw['user'],
-            passwd=dict_sw['pass'],
-            log=logging
+            passwd=dict_sw['pass']
     )
     sw.info()

@@ -24,7 +24,7 @@ class Switch:
     error_msg = ""
     debug = 0
     
-    def __init__(self, stype="", sm="0", host="", ip="", user="", passwd="", log=None):
+    def __init__(self, stype="", sm="0", host="", ip="", user="", passwd=""):
         if stype != "":
             self.stype = stype.lower()
         if ip != "":
@@ -38,8 +38,8 @@ class Switch:
         if passwd != "":
             self.passwd = passwd
         # if log is not None:
-        #    self.log = log
-        log.debug("Switch init:"+str(self))
+        #    logging = log
+        logging.debug("Switch init:"+str(self))
         self.update()
         # if self.debug:
         #    self.info()
@@ -81,14 +81,14 @@ class Switch:
         return res
 
     def connect_sw(self):
-        self.log.debug("Create socket to connect to switch.")
+        logging.debug("Create socket to connect to switch.")
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(60)
         try:
             s.connect((self.ip, 23))
         except Exception, e:
             self.error_msg = "Can\'t connect to "+self.ip+", "+str(e).replace('\n', ' ')
-            self.log.error(self.error_msg)
+            logging.error(self.error_msg)
             self.status = 1
             s = None
         self.sock = s
@@ -98,16 +98,16 @@ class Switch:
             return ""
         try:
             res = self.sock.recv(1024)
-            # self.debug_info(self.safe_str(res))
-            # self.log.debug(self.safe_str(res))
+            # logging.debug(self.safe_str(res))
         except Exception, e:
             self.error_msg = "Error receiving data,"+str(e).replace('\n', ' ')
             self.status = 1
+            logging.error(self.error_msg)
             res = ""
         return res
 
     def get_data(self, exit_condition):
-        self.log.debug("get_data")
+        logging.debug("get_data")
         if self.status > 1:
             return
         data = ""
@@ -124,32 +124,32 @@ class Switch:
                 self.sock.send(" " + chr(13))
             response_data = self.recv_data()
             data = data+response_data
-        self.log.debug(self.safe_str(data))
+        logging.debug(self.safe_str(data))
         # print self.safe_str(data)
         return data
 
     def send_login(self):
-        self.log.debug("send_login: "+self.stype+" "+str(self.status))
+        logging.debug("send_login: "+self.stype+" "+str(self.status))
         if self.status > 1:
             return
         if self.stype == "hp":
             self.send_login_hp()
         elif self.stype == "3com":
-            self.debug_info("send_login_3com")
+            logging.debug("send_login_3com")
             self.send_login_3com()
         elif self.stype == "dlink":
-            self.debug_info("send_login_dlink")
+            logging.debug("send_login_dlink")
             self.send_login_dlink()
         else:
             self.status = 1
-            self.log.error("Incorrect switch type")
+            logging.error("Incorrect switch type")
             self.error_msg = self.stype = " - incorrect switch type."
             return
         res = self.get_data(self.host)
-        self.log.debug("Login success.")
+        logging.debug("Login success.")
 
     def send_login_hp(self):
-        self.log.debug("send_login_hp: "+self.stype+" "+str(self.status))
+        logging.debug("send_login_hp: "+self.stype+" "+str(self.status))
         response_data = " "
         while response_data != "":
             if response_data.find("Username: ") != -1:
@@ -167,13 +167,13 @@ class Switch:
                 return
 
     def send_login_3com(self):
-        self.log.debug("send_login_3com: "+self.stype+" "+str(self.status))
+        logging.debug("send_login_3com: "+self.stype+" "+str(self.status))
         response_data = " "
         while response_data != "":
             if response_data.find("Login:") != -1:
                 self.sock.send(self.user+chr(13))
             if response_data.find("Password:") != -1:
-                self.debug_info("Send password.")
+                logging.debug("Send password.")
                 self.sock.send(self.passwd+chr(13))
                 break
             response_data = self.recv_data()
@@ -181,13 +181,13 @@ class Switch:
                 return
 
     def send_login_dlink(self):
-        self.log.debug("send_login_dlink: "+self.stype+" "+str(self.status))
+        logging.debug("send_login_dlink: "+self.stype+" "+str(self.status))
         response_data = " "
         while response_data != "":
             if response_data.find("username:") != -1:
                 self.sock.send(self.user+chr(13))
             if response_data.find("password:") != -1:
-                self.debug_info("Send password.")
+                logging.debug("Send password.")
                 self.sock.send(self.passwd+chr(13))
                 break
             response_data = self.recv_data()
@@ -195,20 +195,20 @@ class Switch:
                 return
 
     def get_mac(self):
-        self.log.debug("get_mac")
+        logging.debug("get_mac")
         if self.status > 1:
             return {}
         if self.stype == "hp":
             return self.get_mac_hp()
         elif self.stype == "3com":
-            self.debug_info("get_mac_3com")
+            logging.debug("get_mac_3com")
             return self.get_mac_3com()
         elif self.stype == "dlink":
-            self.debug_info("get_mac_dlink")
+            logging.debug("get_mac_dlink")
             return self.get_mac_dlink()
         else:
             self.status = 1
-            self.log.error("Incorrect switch type.")
+            logging.error("Incorrect switch type.")
             return {}
 
     def debug_info(self, message, level=1):
@@ -240,7 +240,7 @@ class Switch:
                 continue
             elif len(line) < 10:
                 continue
-            self.debug_info(str(len(line)) + self.safe_str(line))
+            logging.debug(str(len(line)) + self.safe_str(line))
             line = line.split()
             if len(line) == 5:
                 mac = line[2]
@@ -249,7 +249,7 @@ class Switch:
         return res
 
     def get_mac_hp(self):
-        self.log.debug("get_mac_hp")
+        logging.debug("get_mac_hp")
         res = {}
         if self.sock:
             self.sock.send("show mac-address"+chr(13))
@@ -369,7 +369,7 @@ class Switch:
         return res
 
     def parce_data_hp(self, data):
-        self.log.debug("Parce data hp.")
+        logging.debug("Parce data hp.")
         if self.status > 1:
             return {}
         res = {}
@@ -393,7 +393,7 @@ class Switch:
             elif line.find("MORE") != -1:
                 line = line[-31:]
                 # line=line.replace(chr(13),"")
-            self.log.debug(self.safe_str(line))
+            logging.debug(self.safe_str(line))
             line = line.strip()
             if len(line.split()) == 2:
                 mac, port = line.split()
